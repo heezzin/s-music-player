@@ -1,0 +1,75 @@
+필요한 라이브러리 불러오기
+
+from google.colab import files
+import google_auth_oauthlib.flow
+import googleapiclient.discovery
+     
+Client Secret 파일 불러오기
+
+uploaded = files.upload()
+     
+Upload widget is only available when the cell has been executed in the current browser session. Please rerun this cell to enable.
+Saving client_secret.json to client_secret.json
+API를 사용하기 위해 구글 계정으로 인증하기
+
+API_SERVICE_NAME = 'youtube'
+API_VERSION = 'v3'
+CLIENT_SECRET_FILE = 'client_secret.json'
+
+# [ 사용할 권한 명시 ]
+# 1. 유튜브 계정 보기(youtube.readonly)
+# 2. 유튜브 동영상, 평가, 댓글, 자막 보기, 수정 및 완전 삭제(youtube.force-ssl)
+SCOPES = ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/youtube.force-ssl']
+
+# API 클라이언트 생성 및 인증하여 Credential 객체 얻기
+flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+credentials = flow.run_console()
+youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+     
+해당 사용자의 채널 정보 불러오기
+
+# 인증된 사용자 채널의 기본 정보 가져오기
+channels_response = youtube.channels().list(
+    mine=True,
+    part='contentDetails'
+).execute()
+
+channel = channels_response['items'][0] # 첫 번째 채널 선택
+uploads_playlist_id = channel['contentDetails']['relatedPlaylists']['uploads'] # 업로드 영상 플레이 리스트 ID 추출
+
+print('업로드한 영상의 Playlist ID:', uploads_playlist_id)
+     
+업로드한 영상의 Playlist ID: UUhflhu32f5EUHlY7_SetNWw
+해당 사용자의 동영상 ID 불러오기
+
+# 인증된 사용자 채널의 모든 비디오 정보 가져오기
+playlistitems_list_request = youtube.playlistItems().list(
+    playlistId=uploads_playlist_id,
+    part='snippet',
+    maxResults=50
+)
+
+cnt = 0
+last = 20 # 최근 몇 개까지의 동영상을 확인할지 설정
+video_list = []
+
+# 해당 플레이 리스트의 모든 동영상을 하나씩 확인하며
+while playlistitems_list_request:
+    playlistitems_list_response = playlistitems_list_request.execute()
+
+    # 각 비디오(video)에 대한 정보 출력
+    for playlist_item in playlistitems_list_response['items']:
+        video_id = playlist_item['snippet']['resourceId']['videoId']
+        title = playlist_item['snippet']['title']
+        video_list.append((video_id, title))
+        cnt += 1
+        if cnt >= last:
+            break
+
+    if cnt >= last:
+        break
+    playlistitems_list_request = youtube.playlistItems().list_next(playlistitems_list_request, playlistitems_list_response)
+
+print(f'{cnt}개의 동영상 정보를 불러왔습니다.')
+     
+20개의 동영상 정보를 불러왔습니다.
